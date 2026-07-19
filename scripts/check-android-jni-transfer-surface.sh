@@ -7,19 +7,19 @@ kotlin_native="$repo_root/android/app/src/main/java/dev/envoix/app/Native.kt"
 rust_jni="$repo_root/apps/envoix-android-jni/src/lib.rs"
 
 kotlin_symbols="$(
-  rg -o 'external fun [A-Za-z0-9_]+' "$kotlin_native" |
+  grep -Eo 'external fun [A-Za-z0-9_]+' "$kotlin_native" |
     awk '{print $3}' |
     sort -u
 )"
 rust_symbols="$(
-  rg -o 'fn Java_dev_envoix_app_Native_[A-Za-z0-9_]+' "$rust_jni" |
+  grep -Eo 'fn Java_dev_envoix_app_Native_[A-Za-z0-9_]+' "$rust_jni" |
     sed 's/fn Java_dev_envoix_app_Native_//' |
     sort -u
 )"
 unexpected_external="$(
-  rg -n 'external fun' "$repo_root/android/app/src/main/java/dev/envoix/app" \
-    --glob '!Native.kt' \
-    --glob '!**/ffi/**' || true
+  find "$repo_root/android/app/src/main/java/dev/envoix/app" \
+    -type f -name '*.kt' ! -name 'Native.kt' ! -path '*/ffi/*' \
+    -exec grep -nH 'external fun' {} + || true
 )"
 
 if [[ -n "$unexpected_external" ]]; then

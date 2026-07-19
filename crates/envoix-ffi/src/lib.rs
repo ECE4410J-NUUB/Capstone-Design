@@ -4352,8 +4352,8 @@ mod tests {
     }
 
     enum ManifestMsg {
-        Event(FfiTransferEvent),
-        Activity(FfiManifestActivityRecord),
+        Event(Box<FfiTransferEvent>),
+        Activity(Box<FfiManifestActivityRecord>),
     }
 
     async fn ready_addr(ep: &Endpoint) -> EndpointAddr {
@@ -4394,11 +4394,11 @@ mod tests {
 
     impl ManifestTransferObserverV2 for TestManifestObserver {
         fn on_manifest_event(&self, event: FfiTransferEvent) {
-            let _ = self.0.send(ManifestMsg::Event(event));
+            let _ = self.0.send(ManifestMsg::Event(Box::new(event)));
         }
 
         fn on_manifest_activity(&self, record: FfiManifestActivityRecord) {
-            let _ = self.0.send(ManifestMsg::Activity(record));
+            let _ = self.0.send(ManifestMsg::Activity(Box::new(record)));
         }
     }
 
@@ -4678,9 +4678,9 @@ mod tests {
         let mut events = Vec::new();
         loop {
             match rx.recv_timeout(timeout).unwrap() {
-                ManifestMsg::Event(event) => events.push(event),
+                ManifestMsg::Event(event) => events.push(*event),
                 ManifestMsg::Activity(record) => match record.activity.state {
-                    FfiTransferActivityState::Completed => return (events, record),
+                    FfiTransferActivityState::Completed => return (events, *record),
                     FfiTransferActivityState::Failed | FfiTransferActivityState::Canceled => {
                         panic!("transfer failed: {}", record.activity.diagnostic_message)
                     }

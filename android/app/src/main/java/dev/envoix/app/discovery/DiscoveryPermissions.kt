@@ -15,7 +15,10 @@ internal object DiscoveryPermissions {
                 Manifest.permission.BLUETOOTH_CONNECT,
             )
         } else {
-            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+            arrayOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+            )
         }
 
     fun hasBluetoothPermissions(context: Context): Boolean =

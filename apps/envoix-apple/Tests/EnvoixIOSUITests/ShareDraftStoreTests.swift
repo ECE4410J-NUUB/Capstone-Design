@@ -1,3 +1,4 @@
+import EnvoixCore
 import Foundation
 import UniformTypeIdentifiers
 import XCTest
@@ -260,7 +261,8 @@ final class ShareDraftStoreTests: XCTestCase {
             staged.descriptor.id
         )
 
-        AppModel.shared.removeActivity(activityID)
+        AppModel.shared.handleCoreActivity(Self.activity(id: activityID, state: .queued))
+        XCTAssertTrue(AppModel.shared.removeActivity(activityID))
         XCTAssertThrowsError(try store.load(id: staged.descriptor.id)) { error in
             XCTAssertEqual(error as? ShareDraftStoreError, .draftNotFound)
         }
@@ -723,5 +725,50 @@ final class ShareDraftStoreTests: XCTestCase {
 
         XCTAssertNil(gate.cancel())
         XCTAssertFalse(gate.accept(UUID()))
+    }
+
+    private static func activity(
+        id: String,
+        state: FfiTransferActivityState
+    ) -> FfiTransferActivityRecord {
+        FfiTransferActivityRecord(
+            activityId: id,
+            sequence: 1,
+            attemptId: "attempt-1",
+            state: state,
+            direction: .send,
+            mode: .room,
+            transferId: "transfer-\(id)",
+            fileName: "bound-share.mov",
+            totalBytes: 19,
+            bytesTransferred: 0,
+            bytesResumed: 0,
+            speedBps: 0,
+            averageSpeedBps: 0,
+            createdAtMs: 1,
+            updatedAtMs: 1,
+            startedAtMs: 0,
+            completedAtMs: 0,
+            completedFilePath: "",
+            dataPathKind: .none,
+            dataPathDetail: "",
+            invite: "",
+            token: "",
+            peerDescriptor: "",
+            diagnosticMessage: "",
+            failureCode: .unknown,
+            failureCategory: .unknown,
+            failurePhase: .setup,
+            failureOrigin: .unknown,
+            userMessageKey: "",
+            retryable: false,
+            recoveryAction: .none,
+            limits: FfiTransferLimits(
+                maxParallelTransfers: 1,
+                maxParallelFiles: 1,
+                maxParallelChunksPerFile: 1,
+                speedLimitBps: 0
+            )
+        )
     }
 }

@@ -156,13 +156,21 @@ internal class BluetoothDiscoveryProvider(
                         assembler.accept(value)?.let(::handleInboundInvite)
                     }
                     if (responseNeeded) {
-                        runCatching {
+                        try {
                             gattServer?.sendResponse(
                                 device,
                                 requestId,
                                 if (accepted) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_FAILURE,
                                 0,
                                 null,
+                            )
+                        } catch (_: SecurityException) {
+                            listener?.onStatus(
+                                ProviderStatus(
+                                    source,
+                                    ProviderAvailability.PermissionRequired,
+                                    "Bluetooth permission was revoked",
+                                ),
                             )
                         }
                     }
@@ -186,7 +194,14 @@ internal class BluetoothDiscoveryProvider(
                     if (status != BluetoothGatt.GATT_SUCCESS || newState == BluetoothProfile.STATE_DISCONNECTED) {
                         completeOutbound("Bluetooth connection failed", "connection_failed")
                     } else if (newState == BluetoothProfile.STATE_CONNECTED) {
-                        if (!gatt.requestMtu(REQUESTED_GATT_MTU)) discoverServices(gatt)
+                        val mtuRequestStarted =
+                            try {
+                                gatt.requestMtu(REQUESTED_GATT_MTU)
+                            } catch (_: SecurityException) {
+                                completeOutbound("Bluetooth permission was revoked", "missing_permission")
+                                return@post
+                            }
+                        if (!mtuRequestStarted) discoverServices(gatt)
                     }
                 }
             }
@@ -444,8 +459,16 @@ internal class BluetoothDiscoveryProvider(
 
     private fun releaseGattServerAfterStartFailure() {
         active = false
-        runCatching { gattServer?.clearServices() }
-        runCatching { gattServer?.close() }
+        try {
+            gattServer?.clearServices()
+        } catch (_: SecurityException) {
+            // Permission may be revoked while the GATT server is starting.
+        }
+        try {
+            gattServer?.close()
+        } catch (_: SecurityException) {
+            // The server reference can still be released safely below.
+        }
         gattServer = null
         rendezvousReady = false
     }

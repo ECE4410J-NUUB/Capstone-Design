@@ -209,6 +209,63 @@ final class ShareDraftStoreTests: XCTestCase {
         XCTAssertEqual(try store.pending()?.descriptor.id, staged.descriptor.id)
     }
 
+    func testReleasingShareDraftLeasePreservesDurableDraft() throws {
+        let source = root.appendingPathComponent("durable-share.mov")
+        let payload = Data("durable share payload".utf8)
+        try payload.write(to: source)
+        let store = ShareDraftStore(rootDirectory: root.appendingPathComponent("drafts"))
+        let staged = try store.stage(
+            sourceURL: source,
+            contentTypeIdentifier: "com.apple.quicktime-movie",
+            mediaKind: .video
+        )
+
+        weak var releasedLease: ShareDraftLease?
+        autoreleasepool {
+            let lease = ShareDraftLease(id: staged.descriptor.id, store: store)
+            releasedLease = lease
+        }
+
+        XCTAssertNil(releasedLease)
+        XCTAssertEqual(try store.load(id: staged.descriptor.id), staged)
+
+        let cleanupLease = ShareDraftLease(id: staged.descriptor.id, store: store)
+        try cleanupLease.discard()
+        XCTAssertThrowsError(try store.load(id: staged.descriptor.id)) { error in
+            XCTAssertEqual(error as? ShareDraftStoreError, .draftNotFound)
+        }
+    }
+
+    func testAppModelBindsShareDraftBeforeAcknowledgingAndExplicitlyCleansIt() throws {
+        let source = root.appendingPathComponent("bound-share.mov")
+        try Data("bound share payload".utf8).write(to: source)
+        let store = ShareDraftStore(rootDirectory: root.appendingPathComponent("drafts"))
+        let staged = try store.stage(
+            sourceURL: source,
+            contentTypeIdentifier: "com.apple.quicktime-movie",
+            mediaKind: .video
+        )
+        let activityID = "share-draft-test-\(UUID().uuidString)"
+        defer {
+            AppModel.shared.removeActivity(activityID)
+            try? store.discard(id: staged.descriptor.id)
+        }
+
+        let lease = ShareDraftLease(id: staged.descriptor.id, store: store)
+        AppModel.shared.retainResourceAccess(lease, for: activityID)
+
+        XCTAssertNil(try store.pending())
+        XCTAssertEqual(
+            try store.claimedDraftsByActivityID()[activityID],
+            staged.descriptor.id
+        )
+
+        AppModel.shared.removeActivity(activityID)
+        XCTAssertThrowsError(try store.load(id: staged.descriptor.id)) { error in
+            XCTAssertEqual(error as? ShareDraftStoreError, .draftNotFound)
+        }
+    }
+
     func testStageMultipleFilesKeepsOrderAndRenamesCollisions() throws {
         let first = root.appendingPathComponent("first.jpg")
         let second = root.appendingPathComponent("second.jpg")
@@ -418,6 +475,22 @@ final class ShareDraftStoreTests: XCTestCase {
 
         XCTAssertEqual(draft.descriptor.items.map(\.fileName), ["payload.bin"])
         XCTAssertEqual(try Data(contentsOf: draft.fileURLs[0]), payload)
+    }
+
+    func testShareDraftMaterializationUsesCopyOnWriteCloneOnAPFS() throws {
+        let source = root.appendingPathComponent("clone-source.bin")
+        let destination = root.appendingPathComponent("clone-destination.bin")
+        let payload = Data(repeating: 0x5a, count: 1_048_576)
+        try payload.write(to: source)
+
+        let materialization = try materializeShareDraftFile(
+            at: source,
+            to: destination
+        )
+
+        XCTAssertEqual(materialization, .cloned)
+        try FileManager.default.removeItem(at: source)
+        XCTAssertEqual(try Data(contentsOf: destination), payload)
     }
 
     func testRejectsEmptyAndOversizedItemLists() throws {

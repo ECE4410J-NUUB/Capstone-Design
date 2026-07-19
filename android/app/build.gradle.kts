@@ -33,6 +33,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("String", "GIT_COMMIT", "\"$gitCommit\"")
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             // Ship the envoix binary only for the ABIs we cross-compile.
             abiFilters += listOf("x86_64", "arm64-v8a")
@@ -95,6 +96,9 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 
     // JVM unit tests (the report byte-budget / head-tail logic is pure).
     testImplementation("junit:junit:4.13.2")
